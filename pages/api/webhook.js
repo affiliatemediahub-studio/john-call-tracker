@@ -48,7 +48,7 @@ export default function handler(req, res) {
       calls.unshift(callData);
       if (calls.length > 100) calls = calls.slice(0, 100);
 
-      console.log('[EVA] Call logged:', callData.from, '-', messages.length, 'messages');
+      console.log('[Phillip] Call logged:', callData.from, '-', messages.length, 'messages');
       return res.status(200).json({ success: true, id: callData.id });
 
     } catch (err) {
