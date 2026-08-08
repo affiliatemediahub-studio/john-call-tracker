@@ -1,11 +1,10 @@
-
-webhook_code = '''// pages/api/webhook.js
+// pages/api/webhook.js
 // Receives call data from Vapi and stores it
 
-let calls = []; // In-memory storage (newest first)
+let calls = [];
+let lastRawPayload = null; // For debugging
 
 export default function handler(req, res) {
-  // Allow CORS for Vapi
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -17,46 +16,86 @@ export default function handler(req, res) {
   if (req.method === 'POST') {
     try {
       const data = req.body;
-      console.log('[Phillip] Webhook received:', JSON.stringify(data).substring(0, 200));
+      lastRawPayload = data;
 
-      // Vapi sends different event types
-      const eventType = data.message?.type || data.type || 'unknown';
-      const callData = data.message?.call || data.call || {};
+      console.log('========== WEBHOOK RECEIVED ==========');
+      console.log('Full payload keys:', Object.keys(data));
+      console.log('Payload:', JSON.stringify(data, null, 2).substring(0, 3000));
 
-      // Only log end-of-call-report or similar completion events
-      if (eventType !== 'end-of-call-report' && eventType !== 'call-ended' && eventType !== 'status-update') {
-        console.log('[Phillip] Ignoring event type:', eventType);
-        return res.status(200).json({ success: true, ignored: true, type: eventType });
+      // Vapi wraps in "message" object
+      const message = data.message || data;
+      const eventType = message.type || data.type || 'unknown';
+      console.log('Event type:', eventType);
+
+      // Extract call object - Vapi puts it in message.call
+      const callObj = message.call || message;
+      console.log('Call object keys:', Object.keys(callObj));
+
+      // Extract messages array - Vapi puts it in message.call.messages
+      let messages = [];
+      if (callObj.messages && Array.isArray(callObj.messages)) {
+        messages = callObj.messages;
+      } else if (message.messages && Array.isArray(message.messages)) {
+        messages = message.messages;
+      } else if (data.messages && Array.isArray(data.messages)) {
+        messages = data.messages;
       }
+      console.log('Messages count:', messages.length);
 
-      // Extract the conversation
-      const messages = callData.messages || data.messages || [];
+      // Build transcript
       let transcript = '';
-
       if (messages.length > 0) {
         transcript = messages.map(m => {
           const role = m.role === 'assistant' ? 'Phillip' : 'Caller';
-          return `${role}: ${m.content || m.message || m.text || '(no text)'}`;
-        }).join('\\n');
+          const content = m.message || m.content || m.text || m.word || '(no text)';
+          return `${role}: ${content}`;
+        }).join('\n');
       } else {
-        transcript = callData.transcript || data.transcript || 'No transcript available';
+        transcript = callObj.transcript || callObj.transcriptXML || data.transcript || 'No transcript available';
+      }
+
+      // Extract duration - Vapi sends durationMs
+      let duration = 0;
+      if (callObj.durationMs) {
+        duration = Math.round(callObj.durationMs / 1000);
+      } else if (callObj.duration_ms) {
+        duration = Math.round(callObj.duration_ms / 1000);
+      } else if (callObj.duration) {
+        duration = parseInt(callObj.duration) || 0;
+      } else if (data.durationMs) {
+        duration = Math.round(data.durationMs / 1000);
+      }
+
+      // Extract phone number
+      let fromNumber = 'Unknown';
+      if (callObj.customer?.number) {
+        fromNumber = callObj.customer.number;
+      } else if (callObj.from) {
+        fromNumber = callObj.from;
+      } else if (data.from) {
+        fromNumber = data.from;
+      }
+
+      let toNumber = 'Unknown';
+      if (callObj.phoneNumber?.number) {
+        toNumber = callObj.phoneNumber.number;
+      } else if (callObj.to) {
+        toNumber = callObj.to;
       }
 
       const callRecord = {
-        id: callData.id || data.call_id || Date.now().toString(),
-        from: callData.customer?.number || callData.from || data.from || 'Unknown',
-        fromName: callData.customer?.name || callData.fromName || '',
-        to: callData.phoneNumber?.number || callData.to || data.to || 'Unknown',
-        status: callData.status || data.status || 'completed',
-        reason: callData.endedReason || callData.ended_reason || data.endedReason || data.reason || 'N/A',
-        startedAt: callData.startedAt || callData.started_at || data.startedAt || new Date().toISOString(),
-        endedAt: callData.endedAt || callData.ended_at || data.endedAt || new Date().toISOString(),
-        duration: callData.durationMs ? Math.round(callData.durationMs / 1000) : 
-                  callData.duration_ms ? Math.round(callData.duration_ms / 1000) : 
-                  (callData.duration || data.duration || 0),
+        id: callObj.id || callObj.call_id || data.call_id || Date.now().toString(),
+        from: fromNumber,
+        fromName: callObj.customer?.name || callObj.fromName || '',
+        to: toNumber,
+        status: callObj.status || data.status || 'completed',
+        reason: callObj.endedReason || callObj.ended_reason || callObj.end_reason || data.endedReason || 'N/A',
+        startedAt: callObj.startedAt || callObj.started_at || data.startedAt || new Date().toISOString(),
+        endedAt: callObj.endedAt || callObj.ended_at || data.endedAt || new Date().toISOString(),
+        duration: duration,
         transcript: transcript,
         messageCount: messages.length,
-        summary: callData.summary || data.summary || '',
+        summary: callObj.summary || data.summary || '',
         recordedAt: new Date().toISOString(),
         eventType: eventType
       };
@@ -64,21 +103,22 @@ export default function handler(req, res) {
       calls.unshift(callRecord);
       if (calls.length > 100) calls = calls.slice(0, 100);
 
-      console.log('[Phillip] Call logged:', callRecord.from, '-', messages.length, 'messages -', callRecord.duration + 's');
+      console.log('========== CALL LOGGED ==========');
+      console.log('From:', callRecord.from);
+      console.log('Duration:', callRecord.duration + 's');
+      console.log('Messages:', callRecord.messageCount);
+
       return res.status(200).json({ success: true, id: callRecord.id });
 
     } catch (err) {
-      console.error('[Phillip] Webhook error:', err);
+      console.error('Webhook error:', err);
       return res.status(500).json({ error: err.message });
     }
   }
 
   if (req.method === 'GET') {
-    return res.status(200).json({ calls, count: calls.length });
+    return res.status(200).json({ calls, count: calls.length, lastPayload: lastRawPayload });
   }
 
   res.status(405).end();
 }
-'''
-
-print(webhook_code)
