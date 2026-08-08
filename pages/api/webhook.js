@@ -1,4 +1,5 @@
-// pages/api/webhook.js
+
+webhook_code = '''// pages/api/webhook.js
 // Receives call data from Vapi and stores it
 
 let calls = []; // In-memory storage (newest first)
@@ -16,43 +17,58 @@ export default function handler(req, res) {
   if (req.method === 'POST') {
     try {
       const data = req.body;
+      console.log('[Phillip] Webhook received:', JSON.stringify(data).substring(0, 200));
+
+      // Vapi sends different event types
+      const eventType = data.message?.type || data.type || 'unknown';
+      const callData = data.message?.call || data.call || {};
+
+      // Only log end-of-call-report or similar completion events
+      if (eventType !== 'end-of-call-report' && eventType !== 'call-ended' && eventType !== 'status-update') {
+        console.log('[Phillip] Ignoring event type:', eventType);
+        return res.status(200).json({ success: true, ignored: true, type: eventType });
+      }
 
       // Extract the conversation
-      const messages = data.messages || [];
+      const messages = callData.messages || data.messages || [];
       let transcript = '';
 
       if (messages.length > 0) {
         transcript = messages.map(m => {
           const role = m.role === 'assistant' ? 'Phillip' : 'Caller';
-          return `${role}: ${m.content || m.message || '(no text)'}`;
-        }).join('\n');
+          return `${role}: ${m.content || m.message || m.text || '(no text)'}`;
+        }).join('\\n');
       } else {
-        transcript = 'No transcript available';
+        transcript = callData.transcript || data.transcript || 'No transcript available';
       }
 
-      const callData = {
-        id: data.call?.id || Date.now().toString(),
-        from: data.call?.customer?.number || 'Unknown',
-        fromName: data.call?.customer?.name || '',
-        status: data.call?.status || 'unknown',
-        reason: data.call?.endedReason || 'N/A',
-        startedAt: data.call?.startedAt || new Date().toISOString(),
-        endedAt: data.call?.endedAt || new Date().toISOString(),
-        duration: data.call?.durationMs ? Math.round(data.call.durationMs / 1000) : 0,
+      const callRecord = {
+        id: callData.id || data.call_id || Date.now().toString(),
+        from: callData.customer?.number || callData.from || data.from || 'Unknown',
+        fromName: callData.customer?.name || callData.fromName || '',
+        to: callData.phoneNumber?.number || callData.to || data.to || 'Unknown',
+        status: callData.status || data.status || 'completed',
+        reason: callData.endedReason || callData.ended_reason || data.endedReason || data.reason || 'N/A',
+        startedAt: callData.startedAt || callData.started_at || data.startedAt || new Date().toISOString(),
+        endedAt: callData.endedAt || callData.ended_at || data.endedAt || new Date().toISOString(),
+        duration: callData.durationMs ? Math.round(callData.durationMs / 1000) : 
+                  callData.duration_ms ? Math.round(callData.duration_ms / 1000) : 
+                  (callData.duration || data.duration || 0),
         transcript: transcript,
         messageCount: messages.length,
-        summary: data.call?.summary || '',
-        recordedAt: new Date().toISOString()
+        summary: callData.summary || data.summary || '',
+        recordedAt: new Date().toISOString(),
+        eventType: eventType
       };
 
-      calls.unshift(callData);
+      calls.unshift(callRecord);
       if (calls.length > 100) calls = calls.slice(0, 100);
 
-      console.log('[Phillip] Call logged:', callData.from, '-', messages.length, 'messages');
-      return res.status(200).json({ success: true, id: callData.id });
+      console.log('[Phillip] Call logged:', callRecord.from, '-', messages.length, 'messages -', callRecord.duration + 's');
+      return res.status(200).json({ success: true, id: callRecord.id });
 
     } catch (err) {
-      console.error('[EVA] Webhook error:', err);
+      console.error('[Phillip] Webhook error:', err);
       return res.status(500).json({ error: err.message });
     }
   }
@@ -63,3 +79,6 @@ export default function handler(req, res) {
 
   res.status(405).end();
 }
+'''
+
+print(webhook_code)
