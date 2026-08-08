@@ -38,7 +38,7 @@ export default function Home() {
         <h1 style={{ fontSize: 32, fontWeight: 800, margin: '0 0 6px', letterSpacing: -1 }}>
           John Call <span style={{ color: '#ff6b00' }}>Tracker</span>
         </h1>
-        <p style={{ color: '#888', fontSize: 15, margin: 0 }}>EVA Voice Call Dashboard</p>
+        <p style={{ color: '#888', fontSize: 15, margin: 0 }}>Phillip Voice Call Dashboard</p>
       </div>
 
       {/* Stats */}
@@ -85,7 +85,7 @@ export default function Home() {
         }}>
           <div style={{ fontSize: 56, marginBottom: 16 }}>📞</div>
           <p style={{ color: '#888', fontSize: 16, marginBottom: 8 }}>No calls yet.</p>
-          <p style={{ color: '#555', fontSize: 14 }}>When EVA makes or receives a call, it will appear here automatically.</p>
+          <p style={{ color: '#555', fontSize: 14 }}>When Phillip makes or receives a call, it will appear here automatically.</p>
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
