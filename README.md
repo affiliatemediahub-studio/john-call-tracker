@@ -1,4 +1,4 @@
-# EVA Call Log Dashboard
+# John's Call Log Dashboard
 
 Receives webhooks from Vapi (Phillip AI assistant) and displays call transcripts.
 
