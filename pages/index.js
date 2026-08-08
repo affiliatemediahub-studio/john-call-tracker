@@ -4,7 +4,6 @@ export default function Home() {
   const [calls, setCalls] = useState([])
   const [loading, setLoading] = useState(true)
   const [selectedCall, setSelectedCall] = useState(null)
-  const [debugPayload, setDebugPayload] = useState(null)
 
   useEffect(() => {
     fetchCalls()
@@ -17,7 +16,6 @@ export default function Home() {
       const res = await fetch('/api/webhook')
       const data = await res.json()
       setCalls(data.calls || [])
-      setDebugPayload(data.debug)
     } catch (e) {
       console.error(e)
     } finally {
@@ -31,7 +29,7 @@ export default function Home() {
 
   return (
     <div style={{ maxWidth: 900, margin: '0 auto', padding: '24px 20px', minHeight: '100vh', background: '#0a0a0a', color: '#f0f0f0', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
-      
+
       <div style={{ marginBottom: 28 }}>
         <h1 style={{ fontSize: 32, fontWeight: 800, margin: '0 0 6px', letterSpacing: -1 }}>
           John Call <span style={{ color: '#ff6b00' }}>Tracker</span>
@@ -53,6 +51,7 @@ export default function Home() {
         <div style={{ textAlign: 'center', padding: 80, background: '#141414', borderRadius: 20, border: '1px solid #2a2a2a' }}>
           <div style={{ fontSize: 56, marginBottom: 16 }}>📞</div>
           <p style={{ color: '#888', fontSize: 16 }}>No calls yet.</p>
+          <p style={{ color: '#555', fontSize: 14 }}>When Phillip receives a call, it will appear here.</p>
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -73,10 +72,10 @@ export default function Home() {
                   </div>
                 </div>
               </div>
-              
+
               {selectedCall?.id === call.id && (
                 <div style={{ marginTop: 18, paddingTop: 18, borderTop: '1px solid #2a2a2a' }}>
-                  
+
                   {call.vapiSummary && (
                     <div style={{ marginBottom: 16 }}>
                       <div style={{ fontSize: 11, color: '#ff6b00', marginBottom: 8, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1 }}>
@@ -87,7 +86,7 @@ export default function Home() {
                       </div>
                     </div>
                   )}
-                  
+
                   <div style={{ marginBottom: 16 }}>
                     <div style={{ fontSize: 11, color: '#00c853', marginBottom: 8, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1 }}>
                       📝 Message From Caller
@@ -96,7 +95,7 @@ export default function Home() {
                       {call.callerMessage || 'No message captured'}
                     </div>
                   </div>
-                  
+
                   <div style={{ fontSize: 12, color: '#444', fontFamily: 'monospace' }}>
                     ID: {call.id} • Reason: {call.reason}
                   </div>
@@ -106,20 +105,6 @@ export default function Home() {
           ))}
         </div>
       )}
-
-      {/* DEBUG PANEL */}
-      <div style={{ marginTop: 40, padding: 20, background: '#0d0d0d', borderRadius: 16, border: '1px solid #222' }}>
-        <div style={{ fontSize: 12, color: '#666', marginBottom: 10, fontWeight: 600 }}>
-          DEBUG: Last Raw Payload from Vapi
-        </div>
-        {debugPayload ? (
-          <pre style={{ fontSize: 10, color: '#888', overflow: 'auto', maxHeight: 400, whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
-            {JSON.stringify(debugPayload, null, 2)}
-          </pre>
-        ) : (
-          <div style={{ fontSize: 12, color: '#555' }}>No payload received yet.</div>
-        )}
-      </div>
 
       <div style={{ textAlign: 'center', padding: '30px 0 10px', color: '#333', fontSize: 12 }}>
         Auto-refreshes every 5 seconds • john-call-tracker
