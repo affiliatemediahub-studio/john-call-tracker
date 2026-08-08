@@ -3,112 +3,108 @@
 
 let calls = [];
 
+// Detect system prompts (not real caller messages)
+function isSystemPrompt(text) {
+  if (!text) return true;
+  const t = text.toLowerCase();
+  const junk = [
+    'you are phillip', 'you\'re phillip', 'john\'s personal assistant',
+    'your main job is', 'critical voice rules', 'recruiters & job',
+    'friends & family', 'spam & scammers', 'automated business machine',
+    'corporate answering service', 'speak naturally, casually',
+    'do not give long', 'match the casual energy', 'drawn-out paragraphs'
+  ];
+  return junk.some(m => t.includes(m));
+}
+
 export default function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
+  if (req.method === 'OPTIONS') return res.status(200).end();
 
   if (req.method === 'POST') {
     try {
       const data = req.body;
-      
-      // Vapi wraps everything in "message" object
       const message = data.message || data;
       const eventType = message.type || data.type || 'unknown';
-      
-      // ONLY process end-of-call-report (the final event with all data)
-      // Ignore status-update, call-initiated, ringing, etc.
+
+      // Only process final end-of-call-report
       if (eventType !== 'end-of-call-report') {
-        console.log('[Phillip] Ignoring event type:', eventType);
-        return res.status(200).json({ success: true, ignored: true, type: eventType });
+        return res.status(200).json({ success: true, ignored: true });
       }
-      
-      // Extract call object
+
       const callObj = message.call || message;
-      const callId = callObj.id || callObj.call_id || data.call_id || Date.now().toString();
-      
-      // Extract messages array
-      let messages = [];
+      const callId = callObj.id || Date.now().toString();
+
+      // Get all messages
+      let allMessages = [];
       if (callObj.messages && Array.isArray(callObj.messages)) {
-        messages = callObj.messages;
-      } else if (message.messages && Array.isArray(message.messages)) {
-        messages = message.messages;
+        allMessages = callObj.messages;
       }
-      
-      // Build transcript
-      let transcript = '';
-      if (messages.length > 0) {
-        transcript = messages.map(m => {
-          const role = m.role === 'assistant' ? 'Phillip' : 'Caller';
-          const content = m.message || m.content || m.text || m.word || '(no text)';
-          return `${role}: ${content}`;
-        }).join('\n');
+
+      // Get Vapi's AI summary
+      const vapiSummary = callObj.summary || '';
+
+      // Extract ONLY real caller messages
+      let callerLines = [];
+      for (const m of allMessages) {
+        const role = (m.role || '').toLowerCase();
+        const content = (m.message || m.content || m.text || '').trim();
+
+        // Skip system, assistant, empty, and system-prompt-looking messages
+        if (role === 'system' || role === 'assistant' || !content || isSystemPrompt(content)) {
+          continue;
+        }
+        callerLines.push(content);
+      }
+
+      // If no clean messages found, try parsing raw transcript
+      let callerMessage = '';
+      if (callerLines.length > 0) {
+        callerMessage = callerLines.join('\n\n');
       } else {
-        transcript = callObj.transcript || callObj.transcriptXML || 'No transcript available';
+        const raw = callObj.transcript || '';
+        const lines = raw.split('\n');
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (trimmed.toLowerCase().startsWith('caller:')) {
+            const msg = trimmed.replace(/^caller:\s*/i, '').trim();
+            if (msg && !isSystemPrompt(msg)) callerLines.push(msg);
+          }
+        }
+        callerMessage = callerLines.join('\n\n') || vapiSummary || 'No message from caller';
       }
-      
-      // Extract duration - try every possible field name Vapi uses
+
+      // Duration
       let duration = 0;
-      if (callObj.durationMs) {
-        duration = Math.round(callObj.durationMs / 1000);
-      } else if (callObj.duration_ms) {
-        duration = Math.round(callObj.duration_ms / 1000);
-      } else if (callObj.durationSeconds) {
-        duration = parseInt(callObj.durationSeconds);
-      } else if (callObj.duration_seconds) {
-        duration = parseInt(callObj.duration_seconds);
-      } else if (callObj.duration) {
-        duration = parseInt(callObj.duration);
-      } else if (data.durationMs) {
-        duration = Math.round(data.durationMs / 1000);
-      }
-      
-      // Extract phone number
-      let fromNumber = 'Unknown';
-      if (callObj.customer?.number) {
-        fromNumber = callObj.customer.number;
-      } else if (callObj.from) {
-        fromNumber = callObj.from;
-      }
-      
-      let toNumber = 'Unknown';
-      if (callObj.phoneNumber?.number) {
-        toNumber = callObj.phoneNumber.number;
-      } else if (callObj.to) {
-        toNumber = callObj.to;
-      }
-      
+      if (callObj.durationMs) duration = Math.round(callObj.durationMs / 1000);
+      else if (callObj.duration) duration = parseInt(callObj.duration);
+
+      // Phone number
+      let fromNumber = callObj.customer?.number || callObj.from || 'Unknown';
+
       const callRecord = {
         id: callId,
         from: fromNumber,
         fromName: callObj.customer?.name || '',
-        to: toNumber,
-        status: callObj.status || 'completed',
-        reason: callObj.endedReason || callObj.ended_reason || callObj.end_reason || 'N/A',
-        startedAt: callObj.startedAt || callObj.started_at || new Date().toISOString(),
-        endedAt: callObj.endedAt || callObj.ended_at || new Date().toISOString(),
+        status: 'completed',
+        reason: callObj.endedReason || 'N/A',
         duration: duration,
-        transcript: transcript,
-        messageCount: messages.length,
-        summary: callObj.summary || '',
-        recordedAt: new Date().toISOString(),
-        eventType: eventType
+        callerMessage: callerMessage,
+        vapiSummary: vapiSummary,
+        recordedAt: new Date().toISOString()
       };
-      
-      // Remove any existing call with same ID (deduplicate)
+
       calls = calls.filter(c => c.id !== callId);
       calls.unshift(callRecord);
       if (calls.length > 100) calls = calls.slice(0, 100);
-      
-      console.log('[Phillip] Call logged:', callRecord.from, '-', duration + 's -', messages.length, 'messages');
+
       return res.status(200).json({ success: true, id: callRecord.id });
-      
+
     } catch (err) {
-      console.error('[Phillip] Webhook error:', err);
+      console.error('Error:', err);
       return res.status(500).json({ error: err.message });
     }
   }
