@@ -7,7 +7,7 @@ Receives webhooks from Vapi (Phillip AI assistant) and displays call transcripts
 1. Create a new project on Vercel
 2. Upload these files
 3. Deploy
-4. Copy the deployed URL (e.g., https://your-app.vercel.app)
+4. Copy the deployed URL (e.g., https://vercel.com/affiliate-media-hub-projects/john-call-tracker)
 5. In Vapi dashboard, set the **Server URL** to: `https://your-app.vercel.app/api/webhook`
 6. Done! Call logs will appear automatically.
 
