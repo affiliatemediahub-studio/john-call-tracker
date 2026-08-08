@@ -4,6 +4,7 @@ export default function Home() {
   const [calls, setCalls] = useState([])
   const [loading, setLoading] = useState(true)
   const [selectedCall, setSelectedCall] = useState(null)
+  const [debugPayload, setDebugPayload] = useState(null)
 
   useEffect(() => {
     fetchCalls()
@@ -16,6 +17,7 @@ export default function Home() {
       const res = await fetch('/api/webhook')
       const data = await res.json()
       setCalls(data.calls || [])
+      setDebugPayload(data.debug)
     } catch (e) {
       console.error(e)
     } finally {
@@ -88,10 +90,10 @@ export default function Home() {
                   
                   <div style={{ marginBottom: 16 }}>
                     <div style={{ fontSize: 11, color: '#00c853', marginBottom: 8, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1 }}>
-                      📝 What The Caller Said
+                      📝 Message From Caller
                     </div>
                     <div style={{ fontSize: 16, lineHeight: 1.7, color: '#f0f0f0', background: '#1a1a1a', padding: 14, borderRadius: 10, border: '1px solid #333', whiteSpace: 'pre-wrap' }}>
-                      {call.callerMessage || 'No message recorded'}
+                      {call.callerMessage || 'No message captured'}
                     </div>
                   </div>
                   
@@ -104,6 +106,20 @@ export default function Home() {
           ))}
         </div>
       )}
+
+      {/* DEBUG PANEL */}
+      <div style={{ marginTop: 40, padding: 20, background: '#0d0d0d', borderRadius: 16, border: '1px solid #222' }}>
+        <div style={{ fontSize: 12, color: '#666', marginBottom: 10, fontWeight: 600 }}>
+          DEBUG: Last Raw Payload from Vapi
+        </div>
+        {debugPayload ? (
+          <pre style={{ fontSize: 10, color: '#888', overflow: 'auto', maxHeight: 400, whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+            {JSON.stringify(debugPayload, null, 2)}
+          </pre>
+        ) : (
+          <div style={{ fontSize: 12, color: '#555' }}>No payload received yet.</div>
+        )}
+      </div>
 
       <div style={{ textAlign: 'center', padding: '30px 0 10px', color: '#333', fontSize: 12 }}>
         Auto-refreshes every 5 seconds • john-call-tracker
