@@ -1,6 +1,6 @@
 # John's Call Log Dashboard
 
-Receives webhooks from Vapi (Phillip AI assistant) and displays call transcripts.
+Receives webhooks from Vapi (Sienna AI assistant) and displays call transcripts.
 
 ## Setup
 
@@ -13,7 +13,7 @@ Receives webhooks from Vapi (Phillip AI assistant) and displays call transcripts
 
 ## What It Does
 
-- Catches every call Phillip answers
+- Catches every call Sienna answers
 - Shows caller phone number, time, duration
 - Displays full conversation transcript
 - Auto-sorts calls: JOB / SPAM / FRIEND / OTHER
